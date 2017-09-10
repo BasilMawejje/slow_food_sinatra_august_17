@@ -1,4 +1,14 @@
+<p> Update restaurant's info </p>
 <form action="/edit" method="post">
   <textarea name="description" rows="8" cols="80" placeholder="Description">Opening hours</textarea><br><br>
   <input type="submit" name="update" value="Submit">
+</form>
+
+<p> Add a new dish </p>
+<form action="/auth/create" method="post">
+  <input type="text" name="dish[name]" placeholder="Name">
+  <input type="text" name="dish[description]" placeholder="Dish description">
+  <input type="text" name="dish[price]" placeholder="Price"/>
+  <input type="text" name="dish[category]" placeholder="Category"/>
+  <input type="submit" name="create" value="Add">
 </form>
