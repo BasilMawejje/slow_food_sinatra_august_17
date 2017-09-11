@@ -5,33 +5,26 @@ require_relative 'helpers/data_mapper'
 require_relative 'helpers/warden'
 require 'pry'
 
-
-
-
-
-
 class SlowFood < Sinatra::Base
   enable :sessions
   register Sinatra::Flash
   register Sinatra::Warden
   set :session_secret, 'supersecret'
-
- #binding.pry
   #Create a test User
   if User.count == 0
     User.create!(username: 'admin', password: 'password', email: 'admin@admin.com', phone_number: '123456')
   end
 
- use Warden::Manager do |config|
+  use Warden::Manager do |config|
     # Tell Warden how to save our User info into a session.
     # Sessions can only take strings, not Ruby code, we'll store
     # the User's `id`
-   config.serialize_into_session { |user| user.id }
+    config.serialize_into_session { |user| user.id }
     # Now tell Warden how to take what we've stored in the session
     # and get a User from that information.
     config.serialize_from_session { |id| User.get(id) }
 
-   config.scope_defaults :default,
+    config.scope_defaults :default,
                           # "strategies" is an array of named methods with which to
                           # attempt authentication. We have to define this later.
                           strategies: [:password],
@@ -44,13 +37,15 @@ class SlowFood < Sinatra::Base
     config.failure_app = self
   end
 
- Warden::Manager.before_failure do |env, opts|
+  Warden::Manager.before_failure do |env, opts|
     env['REQUEST_METHOD'] = 'POST'
   end
 
   get '/' do
-    @restaurant = Restaurant.get(1)
+    session[:order_id] ? @order = Order.get(session[:order_id]) : @order = nil
+    session[:order_id] ? @cost = Order.get(session[:order_id]).total : @cost = nil
     @dishes_by_category = Dish.all.group_by { |h| h[:category] }
+
     erb :index
   end
 
@@ -69,88 +64,94 @@ class SlowFood < Sinatra::Base
       flash[:error] = user.errors.full_messages.join(',')
     end
     redirect '/auth/create'
-
-    # if_old_user = User.first(username: params[:user][:username])
-    # if_email_already_used = User.first(email: params[:user][:email])
-    # if params[:user].any? { |key, value| value == "" }
-    #   flash[:error] = "Need to fill in all information"
-    #   redirect '/auth/create'
-    # elsif params[:user][:password] != params[:confirm_password]
-    #   flash[:error] = "Passwords must match"
-    #   redirect '/auth/create'
-    # elsif !if_email_already_used.nil?
-    #   flash[:error] = "Email address already registered"
-    #   redirect '/auth/create'
-    # elsif !if_old_user.nil?
-    #   flash[:error] = "That user already exists"
-    #   redirect '/auth/create'
-    # else
-    #   user = User.create(params[:user])
-    #   flash[:success] = "Successfully created new user"
-    #   env['warden'].set_user(user)
-    #   redirect '/'
-    # end
   end
 
   get '/auth/login' do
     erb :login
   end
 
- post '/auth/login' do
+  post '/auth/login' do
     env['warden'].authenticate!
     flash[:success] = "Successfully logged in #{current_user.username}"
+    # binding.pry
     if session[:return_to].nil?
       redirect '/'
     else
-      redirect session[:return_to]
+      # binding.pry
+      path = request.post? ? '/' : session[:return_to]
+      redirect path
     end
   end
 
- get '/auth/logout' do
+  get '/auth/logout' do
     env['warden'].raw_session.inspect
     env['warden'].logout
     flash[:success] = 'Successfully logged out'
     redirect '/'
   end
 
- post '/auth/unauthenticated' do
+  post '/auth/unauthenticated' do
     session[:return_to] = env['warden.options'][:attempted_path] if session[:return_to].nil?
-
-   # Set the error and use a fallback if the message is not defined
+    # Set the error and use a fallback if the message is not defined
     flash[:error] = env['warden.options'][:message] || 'You must log in'
     redirect '/auth/login'
   end
 
- get '/protected' do
+  get '/dishes/new' do
+    erb :'dishes/new'
+  end
+
+  post '/dishes' do
+    Dish.create(params[:dish])
+    flash[:success] = 'Successfully added a new dish'
+    redirect '/protected'
+  end
+
+  get '/protected' do
+    env['warden'].authenticate!
+
     erb :protected
   end
 
- get '/dishes/new' do
-   erb :'dishes/new'
- end
-
- post '/dishes' do
-   Dish.create(params[:dish])
-   flash[:success] = 'Successfully added a new dish'
-   redirect '/protected'
- end
-
- #post '/dishes' do
-   #env['warden'].authenticate!
-   #dish = Dish.first_or_create(name: params[:name], description: params[:description], price: params[:price], category: params[:category])
-   #dish.save
-   #flash[:success] = "Successfully added a new dish"
-   #redirect '/protected'
-#end
-
- get '/edit' do
-    erb :edit
+  post '/order/add/:dish_id' do
+    env['warden'].authenticate!
+    dish = Dish.get(params[:dish_id])
+    if session[:order_id]
+      order = Order.get(session[:order_id])
+    else
+      order = Order.create(user_id: current_user.id)
+      session[:order_id] = order.id
+    end
+    order.add_item(dish, dish.price, params[:quantity].to_i)
+    flash[:success] = "#{dish.name} was added to your order"
+    redirect '/'
   end
 
- post '/edit' do
-    @restaurant = Restaurant.get(1)
-    @restaurant.update(description: params[:description])
-    flash[:success] = "You have successfully updated the restaurant's description"
+  get '/order/remove/:dish_id' do
+    env['warden'].authenticate!
+    dish = Dish.get(params[:dish_id])
+    if session[:order_id]
+      order = Order.get(session[:order_id])
+      order.remove_item(dish)
+      flash[:success] = "#{dish.name} was removed from your order"
+    else
+      flash[:alert] = "You dont have any #{dish.name} in your order"
+      # order = Order.create(user: current_user)
+      # session[:order_id] = order.id
+    end
+    redirect '/'
+  end
+
+  get '/order/clear' do
+    env['warden'].authenticate!
+    dish = Dish.get(params[:dish_id])
+    if session[:order_id]
+      order = Order.get(session[:order_id])
+    else
+      flash[:alert] = "You dont have any #{dish.name} in your order"
+    end
+    order.cancel_order
+    flash[:success] = "Your order was canceled"
     redirect '/'
   end
 end
