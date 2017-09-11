@@ -15,10 +15,12 @@ Given I have the following restaurant:
 
 And I log in as an admin
 
-Scenario: Admin updates resturant info
+Scenario: Admin creates a dish
   Given I visit the protected page
-  When I click on "Edit info"
-  And I fill in "Description" with "The best food from Iceland, Kyrgyzstan, Italy, South Africa and Sweden."
-  And I click on "Submit"
-  Then I should see the message "You have successfully updated the restaurant's description"
-  And I should see the message "The best food from Iceland, Kyrgyzstan, Italy, South Africa and Sweden."
+  When I click on "Create dish"
+  And I fill in "Name" with "Oysters"
+  And I fill in "Description" with "Sea food"
+  And I fill in "Price" with "150"
+  And I fill in "Category" with "Main"
+  And I click on "Create dish"
+  Then I should see a message saying "Successfully added a new dish"

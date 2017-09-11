@@ -125,13 +125,17 @@ class SlowFood < Sinatra::Base
     erb :protected
   end
 
- post '/protected' do
-   env['warden'].authenticate!
-   dish = Dish.first_or_create(name: params[:name], description: params[:description], price: params[:price], category: params[:category])
-   dish.save
-   flash[:success] = "Successfully added a new dish"
-   redirect '/protected'
-end
+ get '/dishes/new' do
+   erb :'dishes/new'
+ end
+
+ #post '/dishes' do
+   #env['warden'].authenticate!
+   #dish = Dish.first_or_create(name: params[:name], description: params[:description], price: params[:price], category: params[:category])
+   #dish.save
+   #flash[:success] = "Successfully added a new dish"
+   #redirect '/protected'
+#end
 
  get '/edit' do
     erb :edit
