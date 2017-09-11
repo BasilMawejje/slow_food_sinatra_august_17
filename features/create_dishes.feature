@@ -9,10 +9,6 @@ Given the following users exist:
   | username | password |
   | admin    | admin    |
 
-Given I have the following restaurant:
-  | name      | description               |
-  | FoodTrack | We sell awesome food here |
-
 And I log in as an admin
 
 Scenario: Admin creates a dish
